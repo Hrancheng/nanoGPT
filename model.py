@@ -238,6 +238,11 @@ class CausalSelfAttention(nn.Module):
                 y = att @ v_repeated # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
             else:
                 y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+            if self.gate:
+                gate_fn = torch.sigmoid
+                alpha = nn.Linear(self.n_embd, self.n_head, bias=True)
+                gate_mul = gate_fn(alpha(x)).view(5, 6, 2, 1)
+                y = y * gate_mul
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
 
         # output projection

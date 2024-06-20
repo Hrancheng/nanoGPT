@@ -11,6 +11,7 @@ from contextlib import nullcontext
 import plotly.graph_objects as go
 import seaborn as sns
 import matplotlib.pyplot as plt
+import scipy.stats
 
 import pandas as pd
 import numpy as np
@@ -250,8 +251,8 @@ def parse_args():
     logging_group.add_argument('--wandb_project', type=str, default='out-test')
     logging_group.add_argument('--wandb_run_name', type=str, default='logs-test')
     logging_group.add_argument('--statistic', choices=[
-    'input_mean', 'input_median', 'input_stdev', 'input_max', 'input_min',
-    'output_mean', 'output_median', 'output_stdev', 'output_max', 'output_min', 'all_stats', 'input_all','output_all'
+    'input_mean', 'input_median', 'input_stdev', 'input_kurtosis', 'input_max', 'input_min',
+    'output_mean', 'output_median', 'output_stdev', 'output_kurtosis','output_max', 'output_min', 'all_stats', 'input_all','output_all'
 ], default='input_mean', help='Select one or all statistics to display, e.g., --statistic input_min, or --statistic all_stats')
     logging_group.add_argument('--graph_type', choices=[
     "heatmap", "plot", "all"
@@ -267,11 +268,13 @@ def initialize_statistics(num_layers, num_heads):
             'mean': [], #3-D data first D is layer, second D is head, third D is #iter
             'median': [],
             'stdev': [],
+            'kurtosis': [],
             'max': [],
             'min': [],
             'o_mean': [],
             'o_median': [],
             'o_stdev': [],
+            'o_kurtosis':[],
             'o_max': [],
             'o_min': []
         }
@@ -280,11 +283,13 @@ def initialize_statistics(num_layers, num_heads):
             stats['mean'].append([[] for _ in range(num_heads)])
             stats['median'].append([[] for _ in range(num_heads)])
             stats['stdev'].append([[] for _ in range(num_heads)])
+            stats['kurtosis'].append([[] for _ in range(num_heads)])
             stats['max'].append([[] for _ in range(num_heads)])
             stats['min'].append([[] for _ in range(num_heads)])
             stats['o_mean'].append([[] for _ in range(num_heads)])
             stats['o_median'].append([[] for _ in range(num_heads)])
             stats['o_stdev'].append([[] for _ in range(num_heads)])
+            stats['o_kurtosis'].append([[] for _ in range(num_heads)])
             stats['o_max'].append([[] for _ in range(num_heads)])
             stats['o_min'].append([[] for _ in range(num_heads)])
         
@@ -563,16 +568,16 @@ class Trainer:
             os.makedirs(directory_path, exist_ok=True)
             statistics_to_plot = [self.args.statistic]
             if self.args.statistic  == "all_stats":
-                statistics_to_plot = ['input_mean', 'input_median', 'input_stdev', 'input_max', 'input_min',
-                                  'output_mean', 'output_median', 'output_stdev', 'output_max', 'output_min']
+                statistics_to_plot = ['input_mean', 'input_median', 'input_stdev', 'input_kurtosis','input_max', 'input_min',
+                                  'output_mean', 'output_median', 'output_stdev', 'output_kurtosis','output_max', 'output_min']
             elif self.args.statistic == 'input_all':
-                statistics_to_plot = ['input_mean', 'input_median', 'input_stdev', 'input_max', 'input_min']
+                statistics_to_plot = ['input_mean', 'input_median', 'input_stdev', 'input_kurtosis','input_max', 'input_min']
             elif self.args.statistic == 'output_all':
-                statistics_to_plot = ['output_mean', 'output_median', 'output_stdev', 'output_max', 'output_min']
+                statistics_to_plot = ['output_mean', 'output_median', 'output_stdev', 'output_kurtosis','output_max', 'output_min']
             for stat in statistics_to_plot:
                 parts = stat.split('_')
                 data_type = parts[0]  # 'input' or 'output'
-                stat_type = parts[1]  # 'mean', 'median', 'stdev', 'max', 'min'
+                stat_type = parts[1]  # 'mean', 'median', 'stdev', 'kurtosis', 'max', 'min'
 
                 # to decide whether to use the input or output statistics
                 stat_prefix = 'o_' if data_type == 'output' else ''
@@ -756,6 +761,7 @@ class Trainer:
                 i_means = []
                 i_medians = []
                 i_stdevs = []
+                i_kurtosis = []
                 i_max_values = []
                 i_min_values = []
                 denominator = []
@@ -763,6 +769,7 @@ class Trainer:
                 o_means = []
                 o_medians = []
                 o_stdevs = []
+                o_kurtosis = []
                 o_max_values = []
                 o_min_values = []
 
@@ -792,6 +799,7 @@ class Trainer:
                         # Standard deviation, ignoring NaNs
                         mask = ~torch.isnan(i_head)
                         i_stdevs.append(torch.std(i_head[mask]).item())
+                        i_kurtosis.append(scipy.stats.kurtosis(i_head[mask].detach().numpy()))
                         i_sum_vals.append(torch.sum(i_head[mask]).item())
 
                         # Max, temporarily replacing NaNs with -inf for calculation
@@ -806,6 +814,7 @@ class Trainer:
                         self.stats['mean'][layer][i].append(torch.nanmean(flattened).item())
                         self.stats['median'][layer][i].append(torch.nanmedian(flattened).item())
                         self.stats['stdev'][layer][i].append(torch.std(i_head[mask]).item())
+                        self.stats['kurtosis'][layer][i].append(scipy.stats.kurtosis(i_head[mask].detach().numpy()))
                         self.stats['max'][layer][i].append(torch.max(torch.where(torch.isnan(i_head), torch.tensor(float('-inf')), i_head)).item())
                         self.stats['min'][layer][i].append(torch.min(torch.where(torch.isnan(i_head), torch.tensor(float('inf')), i_head)).item())
 
@@ -828,6 +837,7 @@ class Trainer:
                         # Standard deviation, ignoring NaNs
                         mask = ~torch.isnan(o_head)
                         o_stdevs.append(torch.std(o_head[mask]).item())
+                        o_kurtosis.append(scipy.stats.kurtosis(o_head[mask].detach().numpy()))
                         o_sum_vals.append(torch.sum(o_head[mask]).item())
                         # Max, temporarily replacing NaNs with -inf for calculation
                         o_max_values.append(torch.max(torch.where(torch.isnan(o_head), torch.tensor(float('-inf')), o_head)).item())
@@ -837,6 +847,7 @@ class Trainer:
                         self.stats['o_mean'][layer][i].append(torch.nanmean(flattened).item())
                         self.stats['o_median'][layer][i].append(torch.nanmedian(flattened).item())
                         self.stats['o_stdev'][layer][i].append(torch.std(o_head[mask]).item())
+                        self.stats['o_kurtosis'][layer][i].append(scipy.stats.kurtosis(o_head[mask].detach().numpy()))
                         self.stats['o_max'][layer][i].append(torch.max(torch.where(torch.isnan(o_head), torch.tensor(float('-inf')), o_head)).item())
                         self.stats['o_min'][layer][i].append(torch.min(torch.where(torch.isnan(o_head), torch.tensor(float('inf')), o_head)).item())
 
@@ -861,6 +872,7 @@ class Trainer:
                                   *i_means,
                                   *i_medians,
                                   *i_stdevs,
+                                  *i_kurtosis,
                                   *i_max_values,
                                     *i_min_values,
                                   *denominator,
@@ -870,6 +882,7 @@ class Trainer:
                                   *o_means,
                                   *o_medians,
                                   *o_stdevs,
+                                  *o_kurtosis,
                                   *o_max_values,
                                   *o_min_values,
                                   prefix="outputs")
