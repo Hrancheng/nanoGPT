@@ -8,6 +8,7 @@ import pickle
 import shutil
 import sys
 import time
+import scipy
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -292,6 +293,7 @@ def initialize_statistics(num_layers, num_heads):
             'o_mean': [],
             'o_median': [],
             'o_stdev': [],
+            'o_kurtosis': [],
             'o_max': [],
             'o_min': []
         }
