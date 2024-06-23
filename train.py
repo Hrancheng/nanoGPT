@@ -269,8 +269,8 @@ def parse_args():
 
     # Visualization args
     logging_group.add_argument('--statistic', choices=[
-    'input_mean', 'input_median', 'input_stdev', 'input_max', 'input_min',
-    'output_mean', 'output_median', 'output_stdev', 'output_max', 'output_min', 'all_stats', 'input_all','output_all'
+    'input_mean', 'input_median', 'input_stdev', 'input_kurtosis', 'input_max', 'input_min',
+    'output_mean', 'output_median', 'output_stdev', 'output_kurtosis', 'output_max', 'output_min', 'all_stats', 'input_all','output_all'
      ], default='input_mean', help='Select one or all statistics to display, e.g., --statistic input_min, or --statistic all_stats')
     logging_group.add_argument('--graph_type', choices=[
     "heatmap", "plot", "boxplot", "all"
@@ -638,12 +638,12 @@ class Trainer:
             os.makedirs(directory_path, exist_ok=True)
             statistics_to_plot = [self.args.statistic]
             if self.args.statistic  == "all_stats":
-                statistics_to_plot = ['input_mean', 'input_median', 'input_stdev', 'input_max', 'input_min',
-                                  'output_mean', 'output_median', 'output_stdev', 'output_max', 'output_min']
+                statistics_to_plot = ['input_mean', 'input_median', 'input_stdev', 'input_kurtosis', 'input_max', 'input_min',
+                                  'output_mean', 'output_median', 'output_stdev', 'output_kurtosis', 'output_max', 'output_min']
             elif self.args.statistic == 'input_all':
-                statistics_to_plot = ['input_mean', 'input_median', 'input_stdev', 'input_max', 'input_min']
+                statistics_to_plot = ['input_mean', 'input_median', 'input_stdev', 'input_kurtosis', 'input_max', 'input_min']
             elif self.args.statistic == 'output_all':
-                statistics_to_plot = ['output_mean', 'output_median', 'output_stdev', 'output_max', 'output_min']
+                statistics_to_plot = ['output_mean', 'output_median', 'output_stdev', 'output_kurtosis', 'output_max', 'output_min']
             for stat in statistics_to_plot:
                 parts = stat.split('_')
                 data_type = parts[0]  # 'input' or 'output'
