@@ -178,14 +178,15 @@ class CausalSelfAttention(nn.Module):
             window_mask = torch.ones((1, 1, T, T), device=x.device)
             window_mask = torch.triu(window_mask, diagonal=-self.window_size)
             window_mask = self.bias[:,:,:T,:T] * window_mask
-        """
+        
         if self.gate:
             if self.n_kv_group == self.n_head:
-                Gating = nn.Linear(self.n_embd, self.n_embd, bias=True, device=x.device)
-                gate_ = torch.sigmoid(Gating(x))
-                q = q * gate_
-                k = k * gate_
-                v = v * gate_
+                Gating = nn.Linear(self.n_embd, self.n_head, bias=True).to(x.device)
+                gate_ = torch.sigmoid(Gating(x)).view(B, self.n_head, T, 1)
+                #q = q * gate_
+                #k = k * gate_
+                #v = v * gate_
+            """
             else:
                 # TODO: Test more methods to merge Attention Gates with GQA
                 # TODO: Evaluate each method's ability to even out parameter sizes
@@ -197,7 +198,7 @@ class CausalSelfAttention(nn.Module):
                 q = q * gate_q
                 k = k * gate_kv
                 v = v * gate_kv
-        """
+            """
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, n_h, T, hs)
         k = k.view(B, T, self.n_kv_group, C // self.n_head).transpose(1, 2) # (B, n_kv, T, hs)
         v = v.view(B, T, self.n_kv_group, C // self.n_head).transpose(1, 2) # (B, n_kv, T, hs)
@@ -213,8 +214,13 @@ class CausalSelfAttention(nn.Module):
             if self.n_head != self.n_kv_group:
               k_repeated = k.repeat_interleave(self.n_head // self.n_kv_group, dim=1)
               att = (q @ k_repeated.transpose(-2, -1)) / math.sqrt(k.size(-1))
+              print(att.shape)
+              if self.gate:
+                att = att * gate_
             else:
               att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+              if self.gate:
+                att = att * gate_
 
 
             # apply masks
@@ -242,11 +248,19 @@ class CausalSelfAttention(nn.Module):
                 y = att @ v_repeated # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
             else:
                 y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+            """
+            def mirrored_sigmoid(x):
+                # Compute the standard sigmoid function
+                sigmoid_output = 1 / (1 + torch.exp(-x))
+                mirrored_output = 1 - sigmoid_output
+                
+                return mirrored_output
             if self.gate:
-                gate_fn = torch.sigmoid
+                gate_fn = mirrored_sigmoid
                 alpha = nn.Linear(self.n_embd, self.n_head, bias=True).to(x.device)
                 gate_mul = gate_fn(alpha(x)).view(B, self.n_head, T, 1)
                 y = y * gate_mul
+            """
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
 
         # output projection
