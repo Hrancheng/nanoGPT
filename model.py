@@ -178,7 +178,7 @@ class CausalSelfAttention(nn.Module):
             window_mask = torch.ones((1, 1, T, T), device=x.device)
             window_mask = torch.triu(window_mask, diagonal=-self.window_size)
             window_mask = self.bias[:,:,:T,:T] * window_mask
-
+        """
         if self.gate:
             if self.n_kv_group == self.n_head:
                 Gating = nn.Linear(self.n_embd, self.n_embd, bias=True, device=x.device)
@@ -197,7 +197,7 @@ class CausalSelfAttention(nn.Module):
                 q = q * gate_q
                 k = k * gate_kv
                 v = v * gate_kv
-
+        """
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, n_h, T, hs)
         k = k.view(B, T, self.n_kv_group, C // self.n_head).transpose(1, 2) # (B, n_kv, T, hs)
         v = v.view(B, T, self.n_kv_group, C // self.n_head).transpose(1, 2) # (B, n_kv, T, hs)
@@ -244,8 +244,8 @@ class CausalSelfAttention(nn.Module):
                 y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
             if self.gate:
                 gate_fn = torch.sigmoid
-                alpha = nn.Linear(self.n_embd, self.n_head, bias=True)
-                gate_mul = gate_fn(alpha(x)).view(5, 6, 2, 1)
+                alpha = nn.Linear(self.n_embd, self.n_head, bias=True).to(x.device)
+                gate_mul = gate_fn(alpha(x)).view(B, self.n_head, T, 1)
                 y = y * gate_mul
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
 
