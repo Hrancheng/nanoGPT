@@ -242,25 +242,27 @@ class CausalSelfAttention(nn.Module):
             else:
                 att = F.softmax(att, dim=-1)
 
+
             att = self.attn_dropout(att)
-            if self.n_head != self.n_kv_group:
-                v_repeated = v.repeat_interleave(self.n_head // self.n_kv_group, dim=1)
-                y = att @ v_repeated # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
-            else:
-                y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
-            """
             def mirrored_sigmoid(x):
                 # Compute the standard sigmoid function
                 sigmoid_output = 1 / (1 + torch.exp(-x))
                 mirrored_output = 1 - sigmoid_output
-                
                 return mirrored_output
             if self.gate:
                 gate_fn = mirrored_sigmoid
                 alpha = nn.Linear(self.n_embd, self.n_head, bias=True).to(x.device)
                 gate_mul = gate_fn(alpha(x)).view(B, self.n_head, T, 1)
-                y = y * gate_mul
-            """
+                att = att * gate_mul
+            
+            if self.n_head != self.n_kv_group:
+                v_repeated = v.repeat_interleave(self.n_head // self.n_kv_group, dim=1)
+                y = att @ v_repeated # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+            else:
+                y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+            
+
+            
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
 
         # output projection
